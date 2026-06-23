@@ -1,0 +1,78 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  storageLimit BigInt
+  storageUsed  BigInt   @default(0)
+
+  files        File[]
+
+  @@map("users")
+}
+
+model File {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  filename    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  versions    FileVersion[]
+
+  @@index([userId])
+  @@map("files")
+}
+
+model FileVersion {
+  id            String   @id @default(cuid())
+  fileId        String
+  file          File     @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  versionNumber Int
+  size          BigInt
+  createdAt     DateTime @default(now())
+
+  blocks        FileVersionBlock[]
+
+  @@unique([fileId, versionNumber])
+  @@index([fileId])
+  @@map("file_versions")
+}
+
+model Block {
+  hash      String   @id
+  s3Key     String   @unique
+  size      BigInt
+  refCount  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  versions  FileVersionBlock[]
+
+  @@map("blocks")
+}
+
+model FileVersionBlock {
+  versionId  String
+  blockOrder Int
+  hash       String
+
+  version    FileVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  block      Block       @relation(fields: [hash], references: [hash], onDelete: Restrict)
+
+  @@id([versionId, blockOrder])
+  @@index([hash])
+  @@map("file_version_blocks")
+}

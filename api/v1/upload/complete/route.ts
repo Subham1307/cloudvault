@@ -21,6 +21,8 @@ export async function POST(request: NextRequest, response: NextResponse) {
   }
   // check if the chunks were uploaded in S3
   const missingHashes: string[] = [];
+  // pending hashes are hashes that are not in db in hash to s3 key mapping, so a presigned url was generated for them.
+  // the user is supposed to upload the chunks to s3, and then call this endpoint to complete the upload.
   for(const hash of pendingHashes) {
     const s3Key = `blocks/${hash}`;
     try{

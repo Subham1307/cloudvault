@@ -27,7 +27,7 @@ export async function handleFileCreate(tx: TxClient, userId: string, filename: s
             size: fileSize,
         },
     });
-    // create the file version blocks
+    // create the file version blocks, here all hashes are stored
     const fileVersionBlocks = await tx.fileVersionBlock.createMany({
         data: allHashes.map((hash, index) => ({
             versionId: fileVersion.id,

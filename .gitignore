@@ -43,3 +43,6 @@ next-env.d.ts
 
 # generated code
 /generated/
+
+# issues
+issues.txt

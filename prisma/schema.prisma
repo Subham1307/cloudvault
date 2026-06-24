@@ -33,6 +33,7 @@ model File {
 
   versions    FileVersion[]
 
+  @@unique([userId, filename])
   @@index([userId])
   @@map("files")
 }

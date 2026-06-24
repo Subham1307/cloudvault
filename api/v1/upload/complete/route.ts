@@ -1,5 +1,7 @@
 import { REDIS_SESSION_KEY } from "@/constants/constant";
+import { prisma } from "@/lib/prisma";
 import getRedisClient from "@/lib/redis";
+import { handleFileCreate, handleFileUpdate } from "@/service/fileService";
 import { HeadObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { NextRequest, NextResponse } from "next/server";
 const s3Client = new S3Client({ region: process.env.AWS_REGION });
@@ -37,7 +39,25 @@ export async function POST(request: NextRequest, response: NextResponse) {
         return NextResponse.json({ error: "File upload was unsuccessful" }, { status: 404 });
     }
     // do db table updates in a transaction TODO
+    const result = await prisma.$transaction(async (tx) => {
+        // check if the file already exists
+        const existingFile = await tx.file.findUnique({
+            where: {
+                userId_filename: {
+                    userId: userId,
+                    filename: filename,
+                },
+            }
+        });
+        if(existingFile) {
+            await handleFileUpdate(tx, userId, filename, fileSize, mimeType, allHashes, pendingHashes, existingHashes);
+        } else {
+            await handleFileCreate(tx, userId, filename, fileSize, mimeType, allHashes, pendingHashes, existingHashes);
+        }
+    });
+    
     await redis.del(REDIS_SESSION_KEY + sessionId);
   }
   
 }
+

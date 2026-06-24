@@ -50,7 +50,7 @@ export async function POST(request: NextRequest, response: NextResponse) {
             }
         });
         if(existingFile) {
-            await handleFileUpdate(tx, userId, filename, fileSize, mimeType, allHashes, pendingHashes, existingHashes);
+            await handleFileUpdate(tx, existingFile, fileSize, allHashes, pendingHashes, existingHashes);
         } else {
             await handleFileCreate(tx, userId, filename, fileSize, mimeType, allHashes, pendingHashes, existingHashes);
         }

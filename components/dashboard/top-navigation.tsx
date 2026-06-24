@@ -18,35 +18,35 @@ export function TopNavigation({
   showingFiles,
 }: TopNavigationProps) {
   return (
-    <nav className="bg-card border-b border-border sticky top-0 z-50 backdrop-blur-sm bg-card/95">
-      <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+    <nav className="sticky top-0 z-50 px-4 py-4">
+      <div className="max-w-6xl mx-auto bg-white/70 backdrop-blur-xl border border-white/40 rounded-2xl shadow-lg shadow-blue-900/5 px-6 py-3 flex items-center justify-between transition-all">
         {/* Logo */}
-        <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity">
-          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-md">
-            <CloudIcon className="w-6 h-6 text-primary-foreground" />
+        <div className="flex items-center gap-3 cursor-pointer hover:scale-105 transition-transform duration-300">
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-blue-500 via-indigo-500 to-purple-500 flex items-center justify-center shadow-md">
+            <CloudIcon className="w-7 h-7 text-white" />
           </div>
           <div>
-            <h2 className="font-bold text-foreground text-lg">CloudVault</h2>
-            <p className="text-xs text-muted-foreground">Secure Storage</p>
+            <h2 className="font-extrabold text-slate-800 text-xl tracking-tight">CloudVault</h2>
+            <p className="text-xs text-blue-600 font-semibold tracking-wide uppercase">Secure</p>
           </div>
         </div>
 
         {/* Center - File count badge */}
         <div className="hidden md:flex items-center gap-2">
-          <div className="bg-secondary rounded-full px-4 py-2 text-sm font-medium text-foreground">
-            {fileCount} file{fileCount !== 1 ? 's' : ''} stored
+          <div className="bg-blue-50 border border-blue-100 rounded-full px-5 py-2 text-sm font-bold text-blue-700 shadow-inner">
+            {fileCount} <span className="font-medium text-blue-500">file{fileCount !== 1 ? 's' : ''} stored</span>
           </div>
         </div>
 
         {/* Right side - Navigation and User */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-5">
           {/* View toggle */}
           <button
             onClick={onShowFiles}
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg font-medium text-sm transition-all ${
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all duration-300 shadow-sm ${
               showingFiles
-                ? 'bg-primary text-primary-foreground'
-                : 'text-foreground hover:bg-secondary'
+                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-blue-500/30'
+                : 'bg-white text-slate-600 hover:bg-slate-50 hover:text-blue-600 border border-slate-200'
             }`}
           >
             {showingFiles ? (
@@ -63,14 +63,14 @@ export function TopNavigation({
           </button>
 
           {/* User info */}
-          <div className="h-10 w-px bg-border hidden sm:block" />
+          <div className="h-10 w-px bg-slate-200 hidden sm:block" />
 
-          <div className="flex items-center gap-3">
-            <div className="text-right">
-              <p className="text-sm font-semibold text-foreground">{user?.username}</p>
-              <p className="text-xs text-muted-foreground">Pro Member</p>
+          <div className="flex items-center gap-3 group cursor-pointer">
+            <div className="text-right hidden sm:block">
+              <p className="text-sm font-bold text-slate-800 group-hover:text-blue-600 transition-colors">{user?.username}</p>
+              <p className="text-xs font-semibold text-emerald-500">Pro Member</p>
             </div>
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-primary-foreground font-bold text-sm shadow-lg">
+            <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-emerald-400 to-teal-500 flex items-center justify-center text-white font-extrabold text-lg shadow-md shadow-emerald-500/20 group-hover:scale-110 transition-transform">
               {user?.username?.[0]?.toUpperCase()}
             </div>
           </div>
@@ -78,7 +78,7 @@ export function TopNavigation({
           {/* Logout button */}
           <button
             onClick={onLogout}
-            className="ml-2 p-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-all"
+            className="p-2.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-500 hover:text-red-600 transition-colors shadow-sm"
             title="Sign out"
             aria-label="Sign out"
           >

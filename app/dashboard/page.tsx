@@ -1,38 +1,36 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { signOut, useSession } from 'next-auth/react'
+
 import { Dashboard } from '@/components/dashboard/dashboard'
+import { LoadingSpinner } from '@/components/dashboard/loading'
 
 export default function DashboardRoute() {
   const router = useRouter()
-  const [user, setUser] = useState<{ username: string } | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const { data: session, status } = useSession()
 
   useEffect(() => {
-    const stored = sessionStorage.getItem('cloudvault_user')
-    if (stored) {
-      setUser(JSON.parse(stored))
-    } else {
+    if (status === 'unauthenticated') {
       router.replace('/login')
     }
-    setIsLoading(false)
-  }, [router])
+  }, [status, router])
 
-  const handleLogout = () => {
-    sessionStorage.removeItem('cloudvault_user')
-    router.push('/')
+  if (status === 'loading') {
+    return <LoadingSpinner />
   }
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-50 flex items-center justify-center">
-        <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
-      </div>
-    )
+  if (status === 'unauthenticated') {
+    return null
   }
 
-  if (!user) return null
-
-  return <Dashboard user={user} onLogout={handleLogout} />
+  return (
+    <Dashboard
+      user={{
+        username: session?.user?.name ?? '',
+      }}
+      onLogout={() => signOut()}
+    />
+  )
 }

@@ -17,6 +17,8 @@ model User {
   email        String   @unique
   storageLimit BigInt
   storageUsed  BigInt   @default(0)
+  password     String?
+  provider     String
 
   files        File[]
 

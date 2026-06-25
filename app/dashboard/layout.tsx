@@ -1,4 +1,5 @@
 import { Metadata } from 'next'
+import { Providers } from '../provider'
 
 export const metadata: Metadata = {
   title: 'Dashboard',
@@ -14,5 +15,9 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  return children
+  return (
+    <Providers>
+      {children}
+    </Providers>
+  )
 }

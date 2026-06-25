@@ -48,6 +48,3 @@ next-env.d.ts
 issues.txt
 # features
 features.txt
-
-#prisma migrations
-/prisma/migrations

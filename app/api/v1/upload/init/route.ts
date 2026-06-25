@@ -4,9 +4,15 @@ import { prisma } from "@/lib/prisma";
 import { generateS3PreSignedUrl } from "@/actions/aws";
 import crypto from "crypto";
 import { REDIS_HASH_KEY, REDIS_SESSION_KEY } from "@/constants/constant";
+import { getServerSession, NextAuthOptions } from "next-auth";
+import { AUTH_CONFIG } from "@/lib/auth";
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession(AUTH_CONFIG as NextAuthOptions);
+    if(!session){
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const body = await request.json();
     const { filename, fileSize, mimeType, chunkHashes } = body;
 
@@ -66,7 +72,7 @@ export async function POST(request: NextRequest) {
     // Create a Session in Redis
     const sessionId = crypto.randomBytes(16).toString("hex");
     const sessionData = {
-      userId: "1", // TODO: Get from auth context
+      userId: session.user.id as string,
       filename,
       fileSize,
       mimeType,

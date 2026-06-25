@@ -2,10 +2,16 @@ import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import { GetObjectCommand, S3Client} from "@aws-sdk/client-s3"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { getServerSession, NextAuthOptions } from "next-auth";
+import { AUTH_CONFIG } from "@/lib/auth";
 const s3Client = new S3Client({ region: process.env.AWS_REGION });
 const BUCKET = process.env.S3_BUCKET!;
 
 export async function GET(request: NextRequest, response: NextResponse) {
+    const session = await getServerSession(AUTH_CONFIG as NextAuthOptions);
+    if(!session){
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const searchParams = request.nextUrl.searchParams;
     const filename = searchParams.get('filename');
     const versionNumber = searchParams.get('versionNumber');
@@ -13,7 +19,7 @@ export async function GET(request: NextRequest, response: NextResponse) {
         return NextResponse.json({ error: "Invalid request" }, { status: 400 });
     }
     const versionNumberInt = parseInt(versionNumber);
-    const userId = "1"; // get user id from session and check for ownership
+    const userId = session.user.id as string; // get user id from session and check for ownership
     const file = await prisma.file.findUnique({
         where: { 
             userId_filename: {

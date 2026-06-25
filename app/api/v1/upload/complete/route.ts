@@ -37,6 +37,7 @@ export async function POST(request: NextRequest, response: NextResponse) {
             throw error; // unexpected S3 error
         }
     }
+  }
     if(missingHashes.length > 0) {
         return NextResponse.json({ error: "File upload was unsuccessful" }, { status: 404 });
     }
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest, response: NextResponse) {
     });
     
     await redis.del(REDIS_SESSION_KEY + sessionId);
-  }
+  return NextResponse.json({ message: "File uploaded successfully" }, { status: 200 });
   
 }
 

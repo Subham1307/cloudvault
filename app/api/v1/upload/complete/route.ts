@@ -1,13 +1,19 @@
 import { REDIS_SESSION_KEY } from "@/constants/constant";
+import { AUTH_CONFIG } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import getRedisClient from "@/lib/redis";
 import { handleFileCreate, handleFileUpdate } from "@/service/fileService";
 import { HeadObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { getServerSession } from "next-auth";
 import { NextRequest, NextResponse } from "next/server";
 const s3Client = new S3Client({ region: process.env.AWS_REGION });
 const BUCKET = process.env.S3_BUCKET!;
 
 export async function POST(request: NextRequest, response: NextResponse) {
+    const userSession = await getServerSession(AUTH_CONFIG);
+    if(!userSession) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const { sessionId } = await request.json();
     const redis = await getRedisClient();
     const session = await redis.get(REDIS_SESSION_KEY + sessionId);
@@ -16,6 +22,9 @@ export async function POST(request: NextRequest, response: NextResponse) {
     }
     const sessionData = JSON.parse(session);
     const { userId, filename, fileSize, mimeType, allHashes, pendingHashes, existingHashes, status } = sessionData as { userId: string, filename: string, fileSize: number, mimeType: string, allHashes: string[], pendingHashes: string[], existingHashes: string[], status: string };
+    if (userId !== userSession.user.id) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     if (status !== "pending") {
         return NextResponse.json({ error: "File upload was unsuccessful" }, { status: 404 });
     }

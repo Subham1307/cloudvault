@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { TopNavigation } from './top-navigation'
 import { UploadArea } from './upload-area'
 import { FileList } from './file-list'
@@ -13,6 +13,13 @@ interface DashboardProps {
   onLogout: () => void
 }
 
+export interface FileVersion {
+  id: string
+  versionNumber: number
+  size: number | string
+  createdAt: Date | string
+}
+
 export interface UploadedFile {
   id: string
   name: string
@@ -20,11 +27,58 @@ export interface UploadedFile {
   type: string
   uploadedAt: Date
   uploadProgress?: number
+  versions?: FileVersion[]
+  selectedVersion?: number
 }
 
 export function Dashboard({ user, onLogout }: DashboardProps) {
   const [files, setFiles] = useState<UploadedFile[]>([])
   const [showFileList, setShowFileList] = useState(false)
+
+  useEffect(() => {
+    const fetchFiles = async () => {
+      try {
+        const res = await fetch('/api/v1/files')
+        if (res.ok) {
+          const data = await res.json()
+          const mappedFiles: UploadedFile[] = data.map((f: any) => {
+            const sortedVersions = f.versions?.sort((a: any, b: any) => b.versionNumber - a.versionNumber) || []
+            const latestVersion = sortedVersions[0]
+            return {
+              id: f.id,
+              name: f.filename,
+              size: Number(latestVersion?.size || 0),
+              type: 'unknown',
+              uploadedAt: new Date(latestVersion?.createdAt || Date.now()),
+              versions: sortedVersions,
+              selectedVersion: latestVersion?.versionNumber
+            }
+          })
+          setFiles(mappedFiles)
+        }
+      } catch (error) {
+        console.error("Failed to fetch files:", error)
+      }
+    }
+    fetchFiles()
+  }, [])
+
+  const handleVersionChange = (fileId: string, versionNumber: number) => {
+    setFiles(prev => prev.map(f => {
+      if (f.id === fileId && f.versions) {
+        const selectedV = f.versions.find(v => v.versionNumber === versionNumber)
+        if (selectedV) {
+          return {
+            ...f,
+            selectedVersion: versionNumber,
+            size: Number(selectedV.size),
+            uploadedAt: new Date(selectedV.createdAt)
+          }
+        }
+      }
+      return f
+    }))
+  }
 
 
   const handleFileUpload = async (uploadedFiles: File[]) => {
@@ -190,6 +244,7 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
                     files={files.slice(0, 5)}
                     onDownload={handleDownloadFile}
                     onDelete={handleDeleteFile}
+                    onVersionChange={handleVersionChange}
                   />
                 </div>
               </div>
@@ -222,6 +277,7 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
                   files={files}
                   onDownload={handleDownloadFile}
                   onDelete={handleDeleteFile}
+                  onVersionChange={handleVersionChange}
                 />
               </div>
             )}

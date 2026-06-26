@@ -1,7 +1,7 @@
 import { Metadata } from 'next'
 import Link from 'next/link'
 import { CloudIcon, ShieldCheckIcon, ZapIcon, CopyIcon, UploadCloudIcon, LockKeyholeIcon, ArrowRightIcon } from 'lucide-react'
-
+import '@/lib/bigInt-patch.ts'
 export const metadata: Metadata = {
   title: 'CloudVault — Secure, Encrypted Cloud File Storage',
   description:

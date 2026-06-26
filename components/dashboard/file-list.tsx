@@ -7,6 +7,7 @@ interface FileListProps {
   files: UploadedFile[]
   onDownload: (file: UploadedFile) => void
   onDelete: (fileId: string) => void
+  onVersionChange?: (fileId: string, versionNumber: number) => void
 }
 
 function formatFileSize(bytes: number): string {
@@ -36,7 +37,7 @@ function getFileIcon(type: string) {
   return <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center"><FileIcon className="w-6 h-6 text-slate-500" /></div>
 }
 
-export function FileList({ files, onDownload, onDelete }: FileListProps) {
+export function FileList({ files, onDownload, onDelete, onVersionChange }: FileListProps) {
   return (
     <div className="space-y-4">
       {files.map((file, index) => (
@@ -61,6 +62,18 @@ export function FileList({ files, onDownload, onDelete }: FileListProps) {
                 <span className="text-xs font-medium text-slate-400">
                   {formatDate(file.uploadedAt)}
                 </span>
+                {file.versions && file.versions.length > 0 && (
+                  <select 
+                    className="text-xs bg-white border border-slate-200 rounded px-1 py-0.5 text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    value={file.selectedVersion || file.versions[0].versionNumber}
+                    onChange={(e) => onVersionChange?.(file.id, Number(e.target.value))}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {file.versions.map(v => (
+                      <option key={v.id} value={v.versionNumber}>v{v.versionNumber}</option>
+                    ))}
+                  </select>
+                )}
               </div>
               {file.uploadProgress !== undefined && file.uploadProgress < 100 && file.uploadProgress >= 0 && (
                 <div className="mt-2 w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">

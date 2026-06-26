@@ -18,6 +18,7 @@ export interface UploadedFile {
   size: number
   type: string
   uploadedAt: Date
+  uploadProgress?: number
 }
 
 export type chunk = {
@@ -34,9 +35,25 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
 
 
   const handleFileUpload = async (uploadedFiles: File[]) => {
+    const initialFiles: UploadedFile[] = uploadedFiles.map((file) => ({
+      id: `${Date.now()}-${Math.random()}`,
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      uploadedAt: new Date(),
+      uploadProgress: 0,
+    }))
 
-    for (const file of uploadedFiles) {
+    setFiles((prev) => [...initialFiles, ...prev])
+
+    for (let i = 0; i < uploadedFiles.length; i++) {
+      const file = uploadedFiles[i]
+      const fileId = initialFiles[i].id
+
+      setFiles((prev) => prev.map((f) => f.id === fileId ? { ...f, uploadProgress: 5 } : f))
       const chunks: chunk[] = await hashFileWithWorker(file) as chunk[];
+      
+      setFiles((prev) => prev.map((f) => f.id === fileId ? { ...f, uploadProgress: 10 } : f))
       const response = await fetch('/api/v1/upload/init', {
         method: 'POST',
         body: JSON.stringify({
@@ -48,6 +65,7 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
       });
       if( !response.ok ) {
         console.error('Failed to initialize upload');
+        setFiles((prev) => prev.map((f) => f.id === fileId ? { ...f, uploadProgress: -1 } : f))
         throw new Error('Failed to initialize upload');
       }
       const data = await response.json();
@@ -61,26 +79,36 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
       })
 
       const { uploads } = data;
-      const uploadTaks = uploads.map(async (upload: { presignedUrl: string, hash: string }) : Promise<void> => {
-        const { presignedUrl, hash } = upload;
-        const blob = chunksHashToBlobwithAbortController.find((chunk) => chunk.hash === hash)?.blob;
-        const abortController = chunksHashToBlobwithAbortController.find((chunk) => chunk.hash === hash)?.abortController;
-        if( blob ) {
-          await uploadChunkToS3(presignedUrl, blob, abortController!);
+      let completedChunks = 0;
+      const totalUploads = uploads.length;
+
+      if (totalUploads === 0) {
+        setFiles((prev) => prev.map((f) => f.id === fileId ? { ...f, uploadProgress: 90 } : f))
+      } else {
+        const uploadTaks = uploads.map( (upload: { presignedUrl: string, hash: string } ) => async () => {
+          const { presignedUrl, hash } = upload;
+          const blob = chunksHashToBlobwithAbortController.find((chunk) => chunk.hash === hash)?.blob;
+          const abortController = chunksHashToBlobwithAbortController.find((chunk) => chunk.hash === hash)?.abortController;
+          if( blob ) {
+            await uploadChunkToS3(presignedUrl, blob, abortController!);
+            completedChunks++;
+            const progress = 10 + Math.floor((completedChunks / totalUploads) * 80);
+            setFiles((prev) => prev.map((f) => f.id === fileId ? { ...f, uploadProgress: progress } : f))
+          }
+        })
+        const activeUploadTaks: Set<Promise<void>> = new Set();
+        for(const task of uploadTaks) {
+          const promise = task();
+          activeUploadTaks.add(promise);
+          promise.finally(() => {
+            activeUploadTaks.delete(promise);
+          });
+          if( activeUploadTaks.size >= MAX_CONCURRENT_CHUNK_UPLOAD_S3 ) {
+            await Promise.race(activeUploadTaks);
+          }
         }
-      })
-      const activeUploadTaks: Set<Promise<void>> = new Set();
-      for(const task of uploadTaks) {
-        const promise = task();
-        activeUploadTaks.add(promise);
-        promise.finally(() => {
-          activeUploadTaks.delete(promise);
-        });
-        if( activeUploadTaks.size >= MAX_CONCURRENT_CHUNK_UPLOAD_S3 ) {
-          await Promise.race(activeUploadTaks);
-        }
+        await Promise.all(activeUploadTaks);
       }
-      await Promise.all(activeUploadTaks);
       console.log('Uploaded file:', file.name);
 
       const completeResponse = await fetch('/api/v1/upload/complete', {
@@ -91,21 +119,14 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
       });
       if( !completeResponse.ok ) {
         console.error('Failed to complete upload');
+        setFiles((prev) => prev.map((f) => f.id === fileId ? { ...f, uploadProgress: -1 } : f))
         throw new Error('Failed to complete upload');
       }
       const completeData = await completeResponse.json();
       console.log(completeData);
+
+      setFiles((prev) => prev.map((f) => f.id === fileId ? { ...f, uploadProgress: 100 } : f))
     }
-
-    const newFiles: UploadedFile[] = uploadedFiles.map((file) => ({
-      id: `${Date.now()}-${Math.random()}`,
-      name: file.name,
-      size: file.size,
-      type: file.type,
-      uploadedAt: new Date(),
-    }))
-
-    setFiles((prev) => [...newFiles, ...prev])
   }
 
   const handleDeleteFile = (fileId: string) => {

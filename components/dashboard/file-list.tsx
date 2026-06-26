@@ -62,6 +62,19 @@ export function FileList({ files, onDownload, onDelete }: FileListProps) {
                   {formatDate(file.uploadedAt)}
                 </span>
               </div>
+              {file.uploadProgress !== undefined && file.uploadProgress < 100 && file.uploadProgress >= 0 && (
+                <div className="mt-2 w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                  <div 
+                    className="bg-blue-500 h-1.5 rounded-full transition-all duration-300 ease-out" 
+                    style={{ width: `${file.uploadProgress}%` }}
+                  />
+                </div>
+              )}
+              {file.uploadProgress === -1 && (
+                <div className="mt-1 text-xs text-red-500 font-medium">
+                  Upload failed
+                </div>
+              )}
             </div>
           </div>
 

@@ -14,6 +14,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const body = await request.json();
+    console.log(body);
     const { filename, fileSize, mimeType, chunkHashes } = body;
 
     // Validate request
@@ -66,7 +67,7 @@ export async function POST(request: NextRequest) {
     // Generate Presigned URLs for pending hashes
     const uploadResults = await Promise.all(
       pendingHashes.map(async (hash) => {
-        const presignedUrl = await generateS3PreSignedUrl(hash, mimeType || 'application/octet-stream')
+        const presignedUrl = await generateS3PreSignedUrl(hash)
         const base64EncodedHash = Buffer.from(hash, 'hex').toString('base64')
         return { hash, presignedUrl, base64EncodedHash }
       })

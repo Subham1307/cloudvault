@@ -9,14 +9,14 @@ const s3Client = new S3Client({
 
 const BUCKET = process.env.S3_BUCKET || "cloudvault-chunks";
 
-export async function generateS3PreSignedUrl(chunkHash: string, mimeType: string) {
+export async function generateS3PreSignedUrl(chunkHash: string) {
     // Convert hex string hash to base64 as required by AWS ChecksumSHA256
     const base64EncodedHash = Buffer.from(chunkHash, 'hex').toString('base64');
 
     const command = new PutObjectCommand({
       Bucket: BUCKET,
       Key: `blocks/${chunkHash}`,
-      ContentType: mimeType,
+      ContentType: "application/octet-stream",
       ChecksumAlgorithm: "SHA256",
       ChecksumSHA256: base64EncodedHash,
     });

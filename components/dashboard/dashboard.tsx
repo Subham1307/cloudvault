@@ -199,7 +199,6 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
       xhr.addEventListener('error', () => reject(new Error('Network error')))
       xhr.open('PUT', presignedUrl)
       xhr.setRequestHeader('Content-Type', 'application/octet-stream')
-      xhr.setRequestHeader('x-amz-checksum-sha256', base64EncodedHash)
       xhr.send(blob)
       abortController.signal.addEventListener('abort', () => {
         xhr.abort()

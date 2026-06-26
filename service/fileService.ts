@@ -19,6 +19,8 @@ export async function handleFileCreate(tx: TxClient, userId: string, filename: s
             filename: filename,
         },
     });
+    // update the block refCount
+    await updateBlockRefCount(tx, pendingHashes, existingHashes, fileSize);
     // create the file version
     const fileVersion = await tx.fileVersion.create({
         data: {
@@ -35,8 +37,7 @@ export async function handleFileCreate(tx: TxClient, userId: string, filename: s
             hash: hash,
         })),
     });
-    // update the block refCount
-    await updateBlockRefCount(tx, pendingHashes, existingHashes, fileSize);
+    
 }
 
 export async function handleFileUpdate(tx: TxClient, existingFile: File, fileSize: number, allHashes: string[], pendingHashes: string[], existingHashes: string[]) {
@@ -49,6 +50,7 @@ export async function handleFileUpdate(tx: TxClient, existingFile: File, fileSiz
         },
     });
     if(fileVersion) {
+        await updateBlockRefCount(tx, pendingHashes, existingHashes, fileSize);
         const newFileVersion = await tx.fileVersion.create({
             data: {
                 fileId: file.id,
@@ -64,7 +66,6 @@ export async function handleFileUpdate(tx: TxClient, existingFile: File, fileSiz
                 hash: hash,
             })),
         });
-        await updateBlockRefCount(tx, pendingHashes, existingHashes, fileSize);
     }
     else{
         // skip not possible

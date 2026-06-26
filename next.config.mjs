@@ -6,6 +6,9 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  experimental: {
+    workerThreads: true, // enables worker bundling
+  },
 }
 
 export default nextConfig

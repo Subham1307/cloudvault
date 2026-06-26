@@ -93,13 +93,7 @@ export async function POST(request: NextRequest) {
     
     return NextResponse.json({
       sessionId,
-      uploads,
-      existing: existingHashes,
-      stats: {
-        totalChunks,
-        newChunks,
-        deduplicatedChunks
-      }
+      uploads
     });
 
   } catch (error) {

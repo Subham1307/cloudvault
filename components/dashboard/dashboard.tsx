@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { TopNavigation } from './top-navigation'
 import { UploadArea } from './upload-area'
 import { FileList } from './file-list'
+import { hashFileWithWorker } from '@/lib/fileService'
+import { CHUNK_SIZE, MAX_CONCURRENT_CHUNK_UPLOAD_S3 } from '@/constants/constant'
 
 interface DashboardProps {
   user: { username: string } | null
@@ -18,11 +20,83 @@ export interface UploadedFile {
   uploadedAt: Date
 }
 
+export type chunk = {
+  index: number
+  hash: string
+  status: 'pending' | 'uploading' | 'completed' | 'failed'
+  preSignedUrl: string
+  abortController: AbortController
+}
+
 export function Dashboard({ user, onLogout }: DashboardProps) {
   const [files, setFiles] = useState<UploadedFile[]>([])
   const [showFileList, setShowFileList] = useState(false)
 
-  const handleFileUpload = (uploadedFiles: File[]) => {
+
+  const handleFileUpload = async (uploadedFiles: File[]) => {
+
+    for (const file of uploadedFiles) {
+      const chunks: chunk[] = await hashFileWithWorker(file) as chunk[];
+      const response = await fetch('/api/v1/upload/init', {
+        method: 'POST',
+        body: JSON.stringify({
+          filename: file.name,
+          fileSize: file.size,
+          mimeType: file.type,
+          chunkHashes: chunks.map((chunk) => chunk.hash),
+        }),
+      });
+      if( !response.ok ) {
+        console.error('Failed to initialize upload');
+        throw new Error('Failed to initialize upload');
+      }
+      const data = await response.json();
+      console.log(data);
+      const chunksHashToBlobwithAbortController: { hash: string, blob: Blob, abortController: AbortController }[] = chunks.map((chunk) => {
+        return {
+          hash: chunk.hash,
+          blob: file.slice(chunk.index * CHUNK_SIZE, (chunk.index + 1) * CHUNK_SIZE),
+          abortController: chunk.abortController,
+        }
+      })
+
+      const { uploads } = data;
+      const uploadTaks = uploads.map(async (upload: { presignedUrl: string, hash: string }) : Promise<void> => {
+        const { presignedUrl, hash } = upload;
+        const blob = chunksHashToBlobwithAbortController.find((chunk) => chunk.hash === hash)?.blob;
+        const abortController = chunksHashToBlobwithAbortController.find((chunk) => chunk.hash === hash)?.abortController;
+        if( blob ) {
+          await uploadChunkToS3(presignedUrl, blob, abortController!);
+        }
+      })
+      const activeUploadTaks: Set<Promise<void>> = new Set();
+      for(const task of uploadTaks) {
+        const promise = task();
+        activeUploadTaks.add(promise);
+        promise.finally(() => {
+          activeUploadTaks.delete(promise);
+        });
+        if( activeUploadTaks.size >= MAX_CONCURRENT_CHUNK_UPLOAD_S3 ) {
+          await Promise.race(activeUploadTaks);
+        }
+      }
+      await Promise.all(activeUploadTaks);
+      console.log('Uploaded file:', file.name);
+
+      const completeResponse = await fetch('/api/v1/upload/complete', {
+        method: 'POST',
+        body: JSON.stringify({
+          sessionId: data.sessionId,
+        }),
+      });
+      if( !completeResponse.ok ) {
+        console.error('Failed to complete upload');
+        throw new Error('Failed to complete upload');
+      }
+      const completeData = await completeResponse.json();
+      console.log(completeData);
+    }
+
     const newFiles: UploadedFile[] = uploadedFiles.map((file) => ({
       id: `${Date.now()}-${Math.random()}`,
       name: file.name,
@@ -40,6 +114,23 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
 
   const handleDownloadFile = (file: UploadedFile) => {
     console.log('Downloading:', file.name)
+  }
+
+  // XHR upload (needed for progress later) 
+  const uploadChunkToS3 = (presignedUrl: string, blob: Blob, abortController: AbortController): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+      xhr.addEventListener('load', () => {
+        xhr.status === 200 ? resolve() : reject(new Error(`S3 error: ${xhr.status}`))
+      })
+      xhr.addEventListener('error', () => reject(new Error('Network error')))
+      xhr.open('PUT', presignedUrl)
+      xhr.setRequestHeader('Content-Type', 'application/octet-stream')
+      xhr.send(blob)
+      abortController.signal.addEventListener('abort', () => {
+        xhr.abort()
+      })
+    })
   }
 
   return (
@@ -119,4 +210,4 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
       </main>
     </div>
   )
-}
+  }

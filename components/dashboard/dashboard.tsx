@@ -6,6 +6,7 @@ import { UploadArea } from './upload-area'
 import { FileList } from './file-list'
 import { hashFileWithWorker } from '@/lib/fileService'
 import { CHUNK_SIZE, MAX_CONCURRENT_CHUNK_UPLOAD_S3 } from '@/constants/constant'
+import { chunk } from '@/lib/types'
 
 interface DashboardProps {
   user: { username: string } | null
@@ -19,14 +20,6 @@ export interface UploadedFile {
   type: string
   uploadedAt: Date
   uploadProgress?: number
-}
-
-export type chunk = {
-  index: number
-  hash: string
-  status: 'pending' | 'uploading' | 'completed' | 'failed'
-  preSignedUrl: string
-  abortController: AbortController
 }
 
 export function Dashboard({ user, onLogout }: DashboardProps) {
@@ -51,11 +44,15 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
       const fileId = initialFiles[i].id
 
       setFiles((prev) => prev.map((f) => f.id === fileId ? { ...f, uploadProgress: 5 } : f))
-      const chunks: chunk[] = await hashFileWithWorker(file) as chunk[];
-      
+      const rawChunks: chunk[] = await hashFileWithWorker(file) as chunk[];
+      const chunks: chunk[] = rawChunks.map(c => ({
+        ...c,
+        abortController: new AbortController()  // created on main thread
+      }))
       setFiles((prev) => prev.map((f) => f.id === fileId ? { ...f, uploadProgress: 10 } : f))
       const response = await fetch('/api/v1/upload/init', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           filename: file.name,
           fileSize: file.size,
@@ -63,17 +60,17 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
           chunkHashes: chunks.map((chunk) => chunk.hash),
         }),
       });
-      if( !response.ok ) {
+      if (!response.ok) {
         console.error('Failed to initialize upload');
         setFiles((prev) => prev.map((f) => f.id === fileId ? { ...f, uploadProgress: -1 } : f))
         throw new Error('Failed to initialize upload');
       }
       const data = await response.json();
       console.log(data);
-      const chunksHashToBlobwithAbortController: { hash: string, blob: Blob, abortController: AbortController }[] = chunks.map((chunk) => {
+      const chunksHashToBlobwithAbortController: { hash: string, blob: Blob, abortController?: AbortController }[] = chunks.map((chunk) => {
         return {
           hash: chunk.hash,
-          blob: file.slice(chunk.index * CHUNK_SIZE, (chunk.index + 1) * CHUNK_SIZE),
+          blob: file.slice(chunk.start, chunk.end + 1),
           abortController: chunk.abortController,
         }
       })
@@ -85,25 +82,25 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
       if (totalUploads === 0) {
         setFiles((prev) => prev.map((f) => f.id === fileId ? { ...f, uploadProgress: 90 } : f))
       } else {
-        const uploadTaks = uploads.map( (upload: { presignedUrl: string, hash: string } ) => async () => {
-          const { presignedUrl, hash } = upload;
+        const uploadTasks = uploads.map((upload: { presignedUrl: string, hash: string, base64EncodedHash: string }) => async () => {
+          const { presignedUrl, hash, base64EncodedHash } = upload;
           const blob = chunksHashToBlobwithAbortController.find((chunk) => chunk.hash === hash)?.blob;
           const abortController = chunksHashToBlobwithAbortController.find((chunk) => chunk.hash === hash)?.abortController;
-          if( blob ) {
-            await uploadChunkToS3(presignedUrl, blob, abortController!);
+          if (blob) {
+            await uploadChunkToS3(presignedUrl, blob, abortController!, base64EncodedHash);
             completedChunks++;
             const progress = 10 + Math.floor((completedChunks / totalUploads) * 80);
             setFiles((prev) => prev.map((f) => f.id === fileId ? { ...f, uploadProgress: progress } : f))
           }
         })
         const activeUploadTaks: Set<Promise<void>> = new Set();
-        for(const task of uploadTaks) {
+        for (const task of uploadTasks) {
           const promise = task();
           activeUploadTaks.add(promise);
           promise.finally(() => {
             activeUploadTaks.delete(promise);
           });
-          if( activeUploadTaks.size >= MAX_CONCURRENT_CHUNK_UPLOAD_S3 ) {
+          if (activeUploadTaks.size >= MAX_CONCURRENT_CHUNK_UPLOAD_S3) {
             await Promise.race(activeUploadTaks);
           }
         }
@@ -113,11 +110,12 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
 
       const completeResponse = await fetch('/api/v1/upload/complete', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sessionId: data.sessionId,
         }),
       });
-      if( !completeResponse.ok ) {
+      if (!completeResponse.ok) {
         console.error('Failed to complete upload');
         setFiles((prev) => prev.map((f) => f.id === fileId ? { ...f, uploadProgress: -1 } : f))
         throw new Error('Failed to complete upload');
@@ -138,7 +136,7 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
   }
 
   // XHR upload (needed for progress later) 
-  const uploadChunkToS3 = (presignedUrl: string, blob: Blob, abortController: AbortController): Promise<void> => {
+  const uploadChunkToS3 = (presignedUrl: string, blob: Blob, abortController: AbortController, base64EncodedHash: string): Promise<void> => {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest()
       xhr.addEventListener('load', () => {
@@ -147,6 +145,7 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
       xhr.addEventListener('error', () => reject(new Error('Network error')))
       xhr.open('PUT', presignedUrl)
       xhr.setRequestHeader('Content-Type', 'application/octet-stream')
+      xhr.setRequestHeader('x-amz-checksum-sha256', base64EncodedHash)
       xhr.send(blob)
       abortController.signal.addEventListener('abort', () => {
         xhr.abort()
@@ -231,4 +230,4 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
       </main>
     </div>
   )
-  }
+}

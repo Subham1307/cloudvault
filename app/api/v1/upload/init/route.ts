@@ -10,7 +10,7 @@ import { AUTH_CONFIG } from "@/lib/auth";
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(AUTH_CONFIG as NextAuthOptions);
-    if(!session){
+    if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const body = await request.json();
@@ -22,21 +22,21 @@ export async function POST(request: NextRequest) {
     }
 
     const redis = await getRedisClient();
-    
+
     const existingHashes: string[] = [];
     const pendingHashes: string[] = [];
-    const uploads: { hash: string; presignedUrl: string }[] = [];
+    const uploads: { hash: string; presignedUrl: string; base64EncodedHash: string }[] = [];
 
     // Check Redis for all hashes
-    const cacheKeys = chunkHashes.map((hash: string) => REDIS_HASH_KEY+hash);
+    const cacheKeys = chunkHashes.map((hash: string) => REDIS_HASH_KEY + hash);
     let cacheResults: (string | null)[] = [];
     if (cacheKeys.length > 0) {
-       cacheResults = await redis.mGet(cacheKeys);
+      cacheResults = await redis.mGet(cacheKeys);
     }
 
     // Separate hashes into found in cache and not found
     const hashesToCheckInDB: string[] = [];
-    
+
     chunkHashes.forEach((hash: string, index: number) => {
       if (cacheResults[index]) {
         existingHashes.push(hash);
@@ -51,9 +51,9 @@ export async function POST(request: NextRequest) {
         where: { hash: { in: hashesToCheckInDB } },
         select: { hash: true }
       });
-      
+
       const dbFoundHashes = new Set(dbBlocks.map(b => b.hash));
-      
+
       for (const hash of hashesToCheckInDB) {
         if (dbFoundHashes.has(hash)) {
           existingHashes.push(hash);
@@ -64,10 +64,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate Presigned URLs for pending hashes
-    for (const hash of pendingHashes) {
-       const presignedUrl = await generateS3PreSignedUrl(hash, mimeType || "application/octet-stream");
-       uploads.push({ hash, presignedUrl });
-    }
+    const uploadResults = await Promise.all(
+      pendingHashes.map(async (hash) => {
+        const presignedUrl = await generateS3PreSignedUrl(hash, mimeType || 'application/octet-stream')
+        const base64EncodedHash = Buffer.from(hash, 'hex').toString('base64')
+        return { hash, presignedUrl, base64EncodedHash }
+      })
+    )
+    uploads.push(...uploadResults)
 
     // Create a Session in Redis
     const sessionId = crypto.randomBytes(16).toString("hex");
@@ -90,7 +94,7 @@ export async function POST(request: NextRequest) {
     const totalChunks = chunkHashes.length;
     const newChunks = pendingHashes.length;
     const deduplicatedChunks = existingHashes.length;
-    
+
     return NextResponse.json({
       sessionId,
       uploads

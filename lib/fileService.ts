@@ -1,4 +1,4 @@
-import { chunk } from "@/components/dashboard/dashboard";
+import { chunk } from "@/lib/types";
 
 export function hashFileWithWorker(file: File) {
     return new Promise((resolve, reject) => {

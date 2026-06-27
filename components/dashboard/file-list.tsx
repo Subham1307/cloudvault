@@ -6,7 +6,7 @@ import type { UploadedFile } from './dashboard'
 interface FileListProps {
   files: UploadedFile[]
   onDownload: (file: UploadedFile) => void
-  onDelete: (fileId: string) => void
+  onDelete: (file: UploadedFile) => void
   onVersionChange?: (fileId: string, versionNumber: number) => void
 }
 
@@ -94,14 +94,18 @@ export function FileList({ files, onDownload, onDelete, onVersionChange }: FileL
           <div className="flex items-center gap-2 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
             <button
               onClick={() => onDownload(file)}
-              className="p-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-600 transition-colors shadow-sm"
+              disabled={
+                (file.uploadProgress !== undefined && file.uploadProgress < 100) ||
+                !(file.selectedVersion ?? file.versions?.[0]?.versionNumber)
+              }
+              className="p-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-600 transition-colors shadow-sm disabled:opacity-40 disabled:pointer-events-none"
               aria-label={`Download ${file.name}`}
               title="Download file"
             >
               <DownloadIcon className="w-5 h-5" />
             </button>
             <button
-              onClick={() => onDelete(file.id)}
+              onClick={() => onDelete(file)}
               className="p-2.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 transition-colors shadow-sm"
               aria-label={`Delete ${file.name}`}
               title="Delete file"

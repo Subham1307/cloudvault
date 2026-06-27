@@ -181,12 +181,68 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
     }
   }
 
-  const handleDeleteFile = (fileId: string) => {
-    setFiles((prev) => prev.filter((f) => f.id !== fileId))
+  const handleDeleteFile = async (file: UploadedFile) => {
+    if (file.uploadProgress !== undefined && file.uploadProgress < 100) {
+      setFiles((prev) => prev.filter((f) => f.id !== file.id))
+      return
+    }
+
+    const versionNumber = file.selectedVersion ?? file.versions?.[0]?.versionNumber
+    if (versionNumber == null) {
+      setFiles((prev) => prev.filter((f) => f.id !== file.id))
+      return
+    }
+
+    try {
+      const params = new URLSearchParams({
+        filename: file.name,
+        versionNumber: String(versionNumber),
+      })
+      const res = await fetch(`/api/v1/file?${params.toString()}`, { method: 'DELETE' })
+      if (!res.ok) {
+        console.error('Failed to delete file')
+        return
+      }
+
+      setFiles((prev) =>
+        prev
+          .map((f) => {
+            if (f.id !== file.id) return f
+            const remainingVersions = f.versions?.filter((v) => v.versionNumber !== versionNumber) ?? []
+            if (remainingVersions.length === 0) return null
+            const sorted = remainingVersions.sort((a, b) => b.versionNumber - a.versionNumber)
+            const latest = sorted[0]
+            return {
+              ...f,
+              versions: sorted,
+              selectedVersion: latest.versionNumber,
+              size: Number(latest.size),
+              uploadedAt: new Date(latest.createdAt),
+            }
+          })
+          .filter((f): f is UploadedFile => f !== null)
+      )
+    } catch (error) {
+      console.error('Failed to delete file:', error)
+    }
   }
 
   const handleDownloadFile = (file: UploadedFile) => {
-    console.log('Downloading:', file.name)
+    const versionNumber = file.selectedVersion ?? file.versions?.[0]?.versionNumber
+    if (versionNumber == null) return
+    if (file.uploadProgress !== undefined && file.uploadProgress < 100) return
+
+    const params = new URLSearchParams({
+      filename: file.name,
+      versionNumber: String(versionNumber),
+    })
+
+    const link = document.createElement('a')
+    link.href = `/api/v1/file?${params.toString()}`
+    link.download = file.name
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
   }
 
   // XHR upload (needed for progress later) 
